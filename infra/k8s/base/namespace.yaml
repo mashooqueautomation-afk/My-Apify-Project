@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webminer
+  labels:
+    app.kubernetes.io/name: webminer
+    app.kubernetes.io/managed-by: kubectl
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webminer-config
+  namespace: webminer
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  LOG_LEVEL: "info"
+  WORKER_CONCURRENCY: "10"
+  MINIO_BUCKET: "webminer-storage"
+  MINIO_PORT: "9000"
+  MINIO_USE_SSL: "false"
+  API_URL: "http://webminer-api:3000"
+
+---
+# Secrets should be created via sealed-secrets or external-secrets in prod
+# This is a template — replace values before applying
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webminer-secrets
+  namespace: webminer
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://webminer:CHANGE_ME@postgres:5432/webminer"
+  REDIS_URL: "redis://:CHANGE_ME@redis:6379"
+  JWT_SECRET: "CHANGE_ME_TO_A_VERY_LONG_RANDOM_STRING"
+  MINIO_ACCESS_KEY: "CHANGE_ME"
+  MINIO_SECRET_KEY: "CHANGE_ME"
+  MINIO_ENDPOINT: "minio"

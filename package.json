@@ -1,0 +1,26 @@
+{
+  "name": "mash-lead-scrapping",
+  "version": "1.0.0",
+  "description": "Mash Lead Scrapping enterprise lead generation and scraping platform",
+  "private": true,
+  "workspaces": ["packages/*", "dashboard"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:worker\" \"npm run dev:scheduler\" \"npm run dev:dashboard\"",
+    "dev:api": "npm run dev --workspace=packages/api",
+    "dev:worker": "npm run dev --workspace=packages/worker",
+    "dev:scheduler": "npm run dev --workspace=packages/scheduler",
+    "dev:dashboard": "npm run dev --workspace=dashboard",
+    "build": "npm run build --workspaces",
+    "db:migrate": "npm run migrate --workspace=packages/api",
+    "db:seed": "npm run seed --workspace=packages/api",
+    "docker:build-runtimes": "bash scripts/build-runtimes.sh",
+    "docker:up": "npm run docker:build-runtimes && bash scripts/compose-prod.sh up",
+    "docker:down": "bash scripts/compose-prod.sh down",
+    "docker:up:dev": "bash scripts/compose-dev.sh up",
+    "docker:down:dev": "bash scripts/compose-dev.sh down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}

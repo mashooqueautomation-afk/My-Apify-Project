@@ -1,0 +1,153 @@
+version: '3.9'
+
+services:
+  # ─── Infrastructure ───────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: mash_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mash_lead_scrapping
+      POSTGRES_USER: mash
+      POSTGRES_PASSWORD: mash_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mash"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mash_redis
+    restart: unless-stopped
+    command: redis-server --requirepass mash_redis --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "mash_redis", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: mash_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: mash
+      MINIO_ROOT_PASSWORD: mash_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  # ─── Application Services ─────────────────────────────────────────
+  api:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile
+    container_name: mash_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
+      REDIS_URL: redis://:mash_redis@redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: mash
+      MINIO_SECRET_KEY: mash_minio
+      MINIO_BUCKET: mash-lead-scrapping-storage
+    ports:
+      - "3000:3000"
+    volumes:
+      - actor_storage:/app/storage
+
+  worker:
+    build:
+      context: ./packages/worker
+      dockerfile: Dockerfile
+    container_name: mash_worker
+    restart: unless-stopped
+    depends_on:
+      - api
+      - redis
+      - postgres
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
+      REDIS_URL: redis://:mash_redis@redis:6379
+      WORKER_CONCURRENCY: 5
+      DOCKER_SOCKET: /var/run/docker.sock
+      STORAGE_PATH: /app/storage
+      DOCKER_NETWORK: mash_lead_scrapping_network
+      API_URL: http://api:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - actor_storage:/app/storage
+    deploy:
+      replicas: 2
+
+  scheduler:
+    build:
+      context: ./packages/scheduler
+      dockerfile: Dockerfile
+    container_name: mash_scheduler
+    restart: unless-stopped
+    depends_on:
+      - api
+      - redis
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
+      REDIS_URL: redis://:mash_redis@redis:6379
+      API_URL: http://api:3000
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: mash_dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  nginx:
+    image: nginx:alpine
+    container_name: mash_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - dashboard
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  actor_storage:
+
+networks:
+  default:
+    name: mash_lead_scrapping_network

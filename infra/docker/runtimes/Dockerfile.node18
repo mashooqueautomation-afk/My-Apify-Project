@@ -1,0 +1,39 @@
+# WebMiner Node.js 18 Runtime Base Image
+# All actors using runtime: "node18" run in this container
+# Provides: Node.js 18, Chromium (headless), common npm packages
+
+FROM node:18-alpine AS base
+
+# System deps
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    curl \
+    dumb-init
+
+# Chromium env vars
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROME_BIN=/usr/bin/chromium-browser \
+    NODE_ENV=production
+
+WORKDIR /app
+
+# Pre-install common scraping packages
+COPY infra/docker/runtimes/runtime-node18/package.json ./package.json
+RUN npm install --production
+
+# Actor SDK
+COPY packages/actor-sdk/src/index.js ./actor-sdk/index.js
+
+# Security: non-root user
+RUN addgroup -S actorgroup && adduser -S actoruser -G actorgroup
+USER actoruser
+
+# The actual actor code is mounted or copied at runtime
+# CMD is set by the platform at container creation time
+CMD ["node", "src/main.js"]

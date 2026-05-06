@@ -1,0 +1,61 @@
+# WebMiner Playwright Runtime Image
+# Smaller than the Microsoft Playwright base image, but still includes
+# the Linux libraries Chromium needs to run inside Docker.
+
+FROM node:18-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=production \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Install only the OS packages Chromium needs, plus minimal runtime tools.
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update \
+    && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    dumb-init \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Pre-install platform packages.
+COPY infra/docker/runtimes/runtime-playwright/package.json ./package.json
+RUN npm install --production \
+    && npx playwright install chromium
+
+# Actor SDK
+COPY packages/actor-sdk/src/index.js ./actor-sdk/index.js
+
+# Non-root user for security
+RUN mkdir -p /ms-playwright \
+    && groupadd -r actorgroup \
+    && useradd -r -g actorgroup actoruser \
+    && chown -R actoruser:actorgroup /app /ms-playwright
+USER actoruser
+
+CMD ["node", "src/main.js"]

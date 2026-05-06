@@ -1,0 +1,9 @@
+{
+  "maxDelay": 6000,
+  "maxPosts": 5,
+  "minDelay": 3000,
+  "profileUrls": [
+    "https://www.linkedin.com/in/example-profile/"
+  ],
+  "sessionCookie": "li_at=YOUR_LINKEDIN_COOKIE"
+}

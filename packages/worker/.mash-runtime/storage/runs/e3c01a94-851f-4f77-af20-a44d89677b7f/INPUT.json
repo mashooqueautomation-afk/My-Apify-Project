@@ -1,0 +1,9 @@
+{
+  "maxDelay": 6000,
+  "maxPosts": 5,
+  "minDelay": 3000,
+  "profileUrls": [
+    "https://www.linkedin.com/in/prerna-singh-60816523b/"
+  ],
+  "sessionCookie": "li_at=AQEDAV5j1W4DCt9DAAABnfxRZJoAAAGeIF3omk0AeyqsxqQLb5SrJxl0xi4Fd8d6b6vGB4VqqPtUYx9IC74cJFbOr4xh_EEdTLe7N4xq_Y7yYcj1tsN2mM56VsWNfL95yWBSMg_TA0M0Sqjyz9H4R8rL"
+}

@@ -1,0 +1,182 @@
+---
+# Workers need access to Docker socket to spawn actor containers
+# In production use: containerd/kata-containers for stronger isolation
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webminer-worker
+  namespace: webminer
+  labels:
+    app: webminer-worker
+    component: worker
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: webminer-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: webminer-worker
+        component: worker
+    spec:
+      serviceAccountName: webminer-worker
+      terminationGracePeriodSeconds: 120   # Enough to finish current job
+      containers:
+        - name: worker
+          image: webminer/worker:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: webminer-config
+            - secretRef:
+                name: webminer-secrets
+          env:
+            - name: DOCKER_SOCKET
+              value: "/var/run/docker.sock"
+            - name: STORAGE_PATH
+              value: "/app/storage"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+            - name: actor-storage
+              mountPath: /app/storage
+          livenessProbe:
+            exec:
+              command: ["node", "-e", "process.exit(0)"]
+            initialDelaySeconds: 15
+            periodSeconds: 60
+      volumes:
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+        - name: actor-storage
+          persistentVolumeClaim:
+            claimName: actor-storage-pvc
+      # Spread workers across nodes for better resource utilization
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: webminer-worker
+                topologyKey: kubernetes.io/hostname
+
+---
+# ServiceAccount for worker (RBAC)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webminer-worker
+  namespace: webminer
+
+---
+# Worker HPA — scale based on BullMQ queue depth (custom metric)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: webminer-worker-hpa
+  namespace: webminer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webminer-worker
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 3
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 600   # Don't kill workers mid-job
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+
+---
+# PVC for shared actor storage between workers
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: actor-storage-pvc
+  namespace: webminer
+spec:
+  accessModes:
+    - ReadWriteMany    # Must support multi-writer (use NFS or EFS)
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: efs-sc   # AWS EFS / GCP Filestore / Azure Files
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webminer-scheduler
+  namespace: webminer
+  labels:
+    app: webminer-scheduler
+spec:
+  replicas: 1    # Scheduler must be singleton (uses Redis lock for safety)
+  selector:
+    matchLabels:
+      app: webminer-scheduler
+  template:
+    metadata:
+      labels:
+        app: webminer-scheduler
+    spec:
+      containers:
+        - name: scheduler
+          image: webminer/scheduler:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: webminer-config
+            - secretRef:
+                name: webminer-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
