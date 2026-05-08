@@ -1,7 +1,6 @@
 version: '3.9'
 
 services:
-  # ─── Infrastructure ───────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: mash_postgres
@@ -50,7 +49,6 @@ services:
     volumes:
       - minio_data:/data
 
-  # ─── Application Services ─────────────────────────────────────────
   api:
     build:
       context: ./packages/api
@@ -63,7 +61,8 @@ services:
       redis:
         condition: service_healthy
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      DB_SSL: "false"
       PORT: 3000
       DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
       REDIS_URL: redis://:mash_redis@redis:6379
@@ -89,7 +88,8 @@ services:
       - redis
       - postgres
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      DB_SSL: "false"
       DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
       REDIS_URL: redis://:mash_redis@redis:6379
       WORKER_CONCURRENCY: 5
@@ -100,8 +100,6 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - actor_storage:/app/storage
-    deploy:
-      replicas: 2
 
   scheduler:
     build:
@@ -113,7 +111,8 @@ services:
       - api
       - redis
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      DB_SSL: "false"
       DATABASE_URL: postgresql://mash:mash_secret@postgres:5432/mash_lead_scrapping
       REDIS_URL: redis://:mash_redis@redis:6379
       API_URL: http://api:3000
