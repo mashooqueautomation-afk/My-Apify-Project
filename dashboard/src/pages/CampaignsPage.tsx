@@ -206,7 +206,6 @@ export default function CampaignsPage() {
       queryFn: scrapingApi.list,
     });
 
-  // HIDE ARCHIVED CAMPAIGNS
   const campaigns = (
     data?.data || []
   )
@@ -223,7 +222,6 @@ export default function CampaignsPage() {
         )
     );
 
-  // RUN
   const runMutation =
     useMutation({
       mutationFn: ({
@@ -251,7 +249,7 @@ export default function CampaignsPage() {
       }) => {
         const response =
           await fetch(
-            `http://localhost:3000/api/v1/actors/${id}`,
+            `http://localhost:3000/api/v1/scraping/${id}`,
             {
               method: 'PATCH',
 
@@ -290,7 +288,7 @@ export default function CampaignsPage() {
       },
     });
 
-  // DELETE => ARCHIVE
+  // DELETE
   const deleteMutation =
     useMutation({
       mutationFn: async (
@@ -298,7 +296,7 @@ export default function CampaignsPage() {
       ) => {
         const response =
           await fetch(
-            `http://localhost:3000/api/v1/actors/${id}`,
+            `http://localhost:3000/api/v1/scraping/${id}`,
             {
               method: 'PATCH',
 
@@ -355,7 +353,7 @@ export default function CampaignsPage() {
       }) => {
         const response =
           await fetch(
-            `http://localhost:3000/api/v1/actors/${id}`,
+            `http://localhost:3000/api/v1/scraping/${id}`,
             {
               method: 'PATCH',
 
@@ -426,7 +424,6 @@ export default function CampaignsPage() {
         }
       />
 
-      {/* SEARCH */}
       <div className="mb-6 relative">
         <Search
           size={16}
@@ -446,7 +443,6 @@ export default function CampaignsPage() {
         />
       </div>
 
-      {/* LIST */}
       {isLoading ? (
         <div className="text-slate-400">
           Loading...
@@ -466,226 +462,90 @@ export default function CampaignsPage() {
                 key={campaign.id}
                 className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5"
               >
-                {editingId ===
-                campaign.id ? (
-                  <div className="space-y-3">
-                    <Input
-                      label="Name"
-                      value={
-                        editForm.name
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                      {
+                        campaign.runtime
                       }
-                      onChange={(e) =>
-                        setEditForm(
-                          (
-                            f
-                          ) => ({
-                            ...f,
-                            name:
-                              e
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                    />
-
-                    <Input
-                      label="Description"
-                      value={
-                        editForm.description
-                      }
-                      onChange={(e) =>
-                        setEditForm(
-                          (
-                            f
-                          ) => ({
-                            ...f,
-                            description:
-                              e
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                    />
-
-                    <select
-                      value={
-                        editForm.status
-                      }
-                      onChange={(e) =>
-                        setEditForm(
-                          (
-                            f
-                          ) => ({
-                            ...f,
-                            status:
-                              e
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-white"
-                    >
-                      <option value="active">
-                        Active
-                      </option>
-
-                      <option value="draft">
-                        Draft
-                      </option>
-                    </select>
-
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() =>
-                          updateMutation.mutate(
-                            {
-                              id: campaign.id,
-                              data:
-                                editForm,
-                            }
-                          )
-                        }
-                      >
-                        <Save size={12} />
-                        Save
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() =>
-                          setEditingId(
-                            null
-                          )
-                        }
-                      >
-                        <X size={12} />
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                          {
-                            campaign.runtime
-                          }
-                        </p>
-
-                        <h2 className="mt-2 text-lg font-semibold text-white">
-                          {
-                            campaign.name
-                          }
-                        </h2>
-                      </div>
-
-                      <StatusBadge
-                        status={
-                          campaign.status
-                        }
-                      />
-                    </div>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      {campaign.description ||
-                        'No description'}
                     </p>
 
-                    <div className="mt-4">
-                      <select
-                        value={
-                          campaign.status ||
-                          'active'
+                    <h2 className="mt-2 text-lg font-semibold text-white">
+                      {
+                        campaign.name
+                      }
+                    </h2>
+                  </div>
+
+                  <StatusBadge
+                    status={
+                      campaign.status
+                    }
+                  />
+                </div>
+
+                <p className="mt-3 text-sm text-slate-400">
+                  {campaign.description ||
+                    'No description'}
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Link
+                    to={`/campaigns/${campaign.id}`}
+                    className="inline-flex items-center rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400"
+                  >
+                    Open
+                  </Link>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      runMutation.mutate(
+                        {
+                          id: campaign.id,
+                          input: {},
                         }
-                        onChange={(e) =>
-                          statusMutation.mutate(
-                            {
-                              id: campaign.id,
-                              status:
-                                e
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-white"
-                      >
-                        <option value="active">
-                          Active
-                        </option>
+                      )
+                    }
+                  >
+                    <Play size={12} />
+                    Run
+                  </Button>
 
-                        <option value="draft">
-                          Draft
-                        </option>
-                      </select>
-                    </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      startEdit(
+                        campaign
+                      )
+                    }
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </Button>
 
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      <Link
-                        to={`/campaigns/${campaign.id}`}
-                        className="inline-flex items-center rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-cyan-400"
-                      >
-                        Open
-                      </Link>
-
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() =>
-                          runMutation.mutate(
-                            {
-                              id: campaign.id,
-                              input: {},
-                            }
-                          )
-                        }
-                      >
-                        <Play size={12} />
-                        Run
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() =>
-                          startEdit(
-                            campaign
-                          )
-                        }
-                      >
-                        <Pencil size={12} />
-                        Edit
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-400 hover:text-red-300"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Delete "${campaign.name}" ?`
-                            )
-                          ) {
-                            deleteMutation.mutate(
-                              campaign.id
-                            );
-                          }
-                        }}
-                      >
-                        <Trash2 size={12} />
-                        Delete
-                      </Button>
-                    </div>
-                  </>
-                )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-400 hover:text-red-300"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Delete "${campaign.name}" ?`
+                        )
+                      ) {
+                        deleteMutation.mutate(
+                          campaign.id
+                        );
+                      }
+                    }}
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </Button>
+                </div>
               </div>
             )
           )}

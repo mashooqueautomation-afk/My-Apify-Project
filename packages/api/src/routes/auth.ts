@@ -136,21 +136,21 @@ router.post('/logout', authenticate, async (req: Request, res: Response, next: N
 });
 
 // ─── GET /api/v1/auth/me ──────────────────────────────────────────────────────
-router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await db.query(
-      `SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.created_at,
-              o.id as org_id, o.name as org_name, o.slug as org_slug, o.plan
-       FROM users u JOIN organizations o ON u.org_id = o.id
-       WHERE u.id = $1`,
-      [req.user!.userId]
-    );
-    if (!result.rows.length) throw new AppError('User not found', 404);
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    next(err);
+router.get(
+  '/me',
+  authenticate,
+  async (req: any, res: Response) => {
+    return res.json({
+      success: true,
+      data: {
+        id: req.user.userId,
+        orgId: req.user.orgId,
+        email: req.user.email,
+        role: req.user.role,
+      },
+    });
   }
-});
+);
 
 // ─── POST /api/v1/auth/api-keys ──────────────────────────────────────────────
 router.post('/api-keys', authenticate, async (req: Request, res: Response, next: NextFunction) => {

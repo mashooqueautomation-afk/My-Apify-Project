@@ -2,8 +2,8 @@ import axios from 'axios';
 
 const API_BASE_URL =
   window.location.hostname === 'localhost'
-    ? 'http://127.0.0.1:3000'
-    : '';
+    ? 'http://localhost:3000/api/v1'
+    : '/api/v1';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -31,23 +31,69 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
     }
 
-    return Promise.reject(
-      error?.response?.data || error
-    );
+    return Promise.reject(error);
   }
 );
+
+export const downloadProtectedFile = async (
+  url: string,
+  filename: string
+) => {
+  const token = localStorage.getItem('token');
+
+  const response = await axios.get(
+    `${API_BASE_URL}${url}`,
+    {
+      responseType: 'blob',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const blobUrl =
+    window.URL.createObjectURL(
+      new Blob([response.data])
+    );
+
+  const link =
+    document.createElement('a');
+
+  link.href = blobUrl;
+
+  link.setAttribute(
+    'download',
+    filename
+  );
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  link.remove();
+
+  window.URL.revokeObjectURL(
+    blobUrl
+  );
+};
 
 export const authApi = {
   login: (data: {
     email: string;
     password: string;
-  }) => api.post('/auth/login', data),
+  }) =>
+    api.post('/auth/login', data),
 
-  me: () => api.get('/auth/me'),
+  me: () =>
+    api.get('/auth/me'),
 };
 
 export const actorsApi = {
-  list: () => api.get('/actors'),
+  list: () =>
+    api.get('/actors'),
+
+  detail: (id: string) =>
+    api.get(`/actors/${id}`),
 
   create: (data: any) =>
     api.post('/actors', data),
@@ -55,14 +101,31 @@ export const actorsApi = {
   update: (
     id: string,
     data: any
-  ) => api.put(`/actors/${id}`, data),
+  ) =>
+    api.patch(
+      `/actors/${id}`,
+      data
+    ),
 
   delete: (id: string) =>
     api.delete(`/actors/${id}`),
+
+  run: (
+    id: string,
+    data: any = {}
+  ) =>
+    api.post(
+      `/actors/${id}/runs`,
+      data
+    ),
 };
 
 export const campaignsApi = {
-  list: () => api.get('/scraping'),
+  list: () =>
+    api.get('/scraping'),
+
+  detail: (id: string) =>
+    api.get(`/scraping/${id}`),
 
   create: (data: any) =>
     api.post('/scraping', data),
@@ -71,14 +134,63 @@ export const campaignsApi = {
     id: string,
     data: any
   ) =>
-    api.put(`/scraping/${id}`, data),
+    api.put(
+      `/scraping/${id}`,
+      data
+    ),
 
   delete: (id: string) =>
-    api.delete(`/scraping/${id}`),
+    api.delete(
+      `/scraping/${id}`
+    ),
+
+  run: (
+    id: string,
+    data: any = {}
+  ) =>
+    api.post(
+      `/scraping/${id}/run`,
+      data
+    ),
+};
+
+export const scrapingApi = {
+  list: () =>
+    api.get('/scraping'),
+
+  detail: (id: string) =>
+    api.get(`/scraping/${id}`),
+
+  create: (data: any) =>
+    api.post('/scraping', data),
+
+  update: (
+    id: string,
+    data: any
+  ) =>
+    api.put(
+      `/scraping/${id}`,
+      data
+    ),
+
+  delete: (id: string) =>
+    api.delete(
+      `/scraping/${id}`
+    ),
+
+  run: (
+    id: string,
+    data: any = {}
+  ) =>
+    api.post(
+      `/scraping/${id}/run`,
+      data
+    ),
 };
 
 export const webhooksApi = {
-  list: () => api.get('/webhooks'),
+  list: () =>
+    api.get('/webhooks'),
 
   create: (data: any) =>
     api.post('/webhooks', data),
@@ -86,54 +198,43 @@ export const webhooksApi = {
 
 export const metricsApi = {
   overview: () =>
-    api.get('/metrics/overview'),
-
-  runsDaily: (days = 14) =>
     api.get(
-      `/metrics/runs/daily?days=${days}`
+      '/metrics/overview'
+    ),
+
+  runsDaily: (
+    days: number = 14
+  ) =>
+    api.get(
+      `/metrics/runs/daily?days=${Number(days)}`
     ),
 };
 
 export const runsApi = {
-  list: (limit = 10) =>
-    api.get(`/runs?limit=${limit}`),
+  list: (
+    limit: number = 10
+  ) =>
+    api.get(
+      `/runs?limit=${Number(limit)}`
+    ),
 
   detail: (id: string) =>
     api.get(`/runs/${id}`),
 };
 
-export const scrapingApi = {
-  list: () => api.get('/scraping'),
-
-  create: (data: any) =>
-    api.post('/scraping', data),
-
-  update: (
-    id: string,
-    data: any
-  ) =>
-    api.put(`/scraping/${id}`, data),
-
-  delete: (id: string) =>
-    api.delete(`/scraping/${id}`),
-};
-
 export const datasetsApi = {
-  list: () => api.get('/datasets'),
-
-  detail: (id: string) =>
-    api.get(`/datasets/${id}`),
+  list: () =>
+    api.get('/datasets'),
 };
 
 export const tasksApi = {
-  list: () => api.get('/tasks'),
-
-  create: (data: any) =>
-    api.post('/tasks', data),
+  list: () =>
+    api.get('/tasks'),
 };
 
 export const usersApi = {
-  list: () => api.get('/users'),
+  list: () =>
+    api.get('/users'),
 };
 
 export const organizationsApi = {
@@ -142,11 +243,13 @@ export const organizationsApi = {
 };
 
 export const proxiesApi = {
-  list: () => api.get('/proxies'),
+  list: () =>
+    api.get('/proxies'),
 };
 
 export const kvStoresApi = {
-  list: () => api.get('/kv-stores'),
+  list: () =>
+    api.get('/kv-stores'),
 };
 
 export const requestQueuesApi = {
@@ -154,62 +257,21 @@ export const requestQueuesApi = {
     api.get('/request-queues'),
 };
 
-export const downloadProtectedFile =
-  async (
-    url: string,
-    filename?: string
-  ) => {
-    const token =
-      localStorage.getItem('token');
-
-    const response = await fetch(
-      `${API_BASE_URL}${url}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        'Download failed'
-      );
-    }
-
-    const blob =
-      await response.blob();
-
-    const downloadUrl =
-      window.URL.createObjectURL(blob);
-
-    const link =
-      document.createElement('a');
-
-    link.href = downloadUrl;
-
-    link.download =
-      filename || 'download';
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    link.remove();
-
-    window.URL.revokeObjectURL(
-      downloadUrl
-    );
-  };
-
 export const storeApi = {
+  listApps: () =>
+    api.get('/store/apps'),
+
+  installApp: (
+    slug: string,
+    data: { name?: string }
+  ) =>
+    api.post(
+      `/store/apps/${slug}/install`,
+      data
+    ),
+
   templates: () =>
     api.get('/store/templates'),
-
-  templateDetail: (id: string) =>
-    api.get(
-      `/store/templates/${id}`
-    ),
 
   categories: () =>
     api.get('/store/categories'),

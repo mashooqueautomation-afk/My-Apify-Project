@@ -27,8 +27,9 @@ WORKDIR /app
 COPY infra/docker/runtimes/runtime-node18/package.json ./package.json
 RUN npm install --production
 
-# Actor SDK
-COPY packages/actor-sdk/src/index.js ./actor-sdk/index.js
+# Actor SDK - available globally in node_modules
+RUN mkdir -p node_modules/@webminer/actor-sdk/lib
+COPY packages/actor-sdk/src/ node_modules/@webminer/actor-sdk/lib/
 
 # Security: non-root user
 RUN addgroup -S actorgroup && adduser -S actoruser -G actorgroup
