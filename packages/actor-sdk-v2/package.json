@@ -1,0 +1,30 @@
+{
+  "name": "@webminer/actor-sdk",
+  "version": "2.0.0",
+  "description": "Production-grade Actor SDK for WebMiner",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./actor": "./dist/core/Actor.js",
+    "./dataset": "./dist/storage/Dataset.js",
+    "./queue": "./dist/queue/RequestQueue.js",
+    "./logger": "./dist/logging/Logger.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test 'dist/**/*.test.js'"
+  },
+  "dependencies": {
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1",
+    "uuid": "^9.0.0",
+    "p-retry": "^6.1.0",
+    "p-queue": "^7.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.5"
+  }
+}

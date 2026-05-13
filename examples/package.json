@@ -1,0 +1,11 @@
+{
+  "name": "@webminer/examples",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:basic": "WEBMINER_RUN_ID=test-001 WEBMINER_ACTOR_ID=basic-scraper WEBMINER_API_URL=http://localhost:3000 WEBMINER_API_TOKEN=test-token WEBMINER_DATASET_ID=test-ds-001 node basic-scraper.js"
+  },
+  "dependencies": {
+    "@webminer/actor-sdk": "^2.0.0"
+  }
+}

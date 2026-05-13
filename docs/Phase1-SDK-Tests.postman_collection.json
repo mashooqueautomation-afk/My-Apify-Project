@@ -1,0 +1,149 @@
+{
+  "info": {
+    "name": "Phase 1 SDK Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Dataset",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"phase1-test-dataset\"\n}"
+        },
+        "url": {
+          "raw": "{{api_url}}/api/v1/datasets",
+          "host": ["{{api_url}}"],
+          "path": ["api", "v1", "datasets"]
+        }
+      }
+    },
+    {
+      "name": "2. Push Dataset Items",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n  {\n    \"url\": \"https://example.com/1\",\n    \"title\": \"Item 1\",\n    \"price\": 99.99\n  },\n  {\n    \"url\": \"https://example.com/2\",\n    \"title\": \"Item 2\",\n    \"price\": 199.99\n  }\n]"
+        },
+        "url": {
+          "raw": "{{api_url}}/api/v1/datasets/{{dataset_id}}/items",
+          "host": ["{{api_url}}"],
+          "path": ["api", "v1", "datasets", "{{dataset_id}}", "items"]
+        }
+      }
+    },
+    {
+      "name": "3. Get Dataset Items",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_url}}/api/v1/datasets/{{dataset_id}}/items?offset=0&limit=100",
+          "host": ["{{api_url}}"],
+          "path": ["api", "v1", "datasets", "{{dataset_id}}", "items"],
+          "query": [
+            {
+              "key": "offset",
+              "value": "0"
+            },
+            {
+              "key": "limit",
+              "value": "100"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Export Dataset as JSON",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_url}}/api/v1/datasets/{{dataset_id}}/export?format=json",
+          "host": ["{{api_url}}"],
+          "path": ["api", "v1", "datasets", "{{dataset_id}}", "export"],
+          "query": [
+            {
+              "key": "format",
+              "value": "json"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Get Dataset Metadata",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{api_url}}/api/v1/datasets/{{dataset_id}}",
+          "host": ["{{api_url}}"],
+          "path": ["api", "v1", "datasets", "{{dataset_id}}"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "api_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "your-token-here",
+      "type": "string"
+    },
+    {
+      "key": "dataset_id",
+      "value": "ds-abc123",
+      "type": "string"
+    }
+  ]
+}
