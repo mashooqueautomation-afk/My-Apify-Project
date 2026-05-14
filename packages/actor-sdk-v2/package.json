@@ -17,14 +17,15 @@
     "test": "node --test 'dist/**/*.test.js'"
   },
   "dependencies": {
+    "p-queue": "^7.4.1",
+    "p-retry": "^6.1.0",
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
-    "uuid": "^9.0.0",
-    "p-retry": "^6.1.0",
-    "p-queue": "^7.4.1"
+    "playwright": "^1.43.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/node": "^20.11.5"
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
   }
 }

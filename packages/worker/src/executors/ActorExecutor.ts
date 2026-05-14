@@ -9,6 +9,11 @@ import { logger } from '../utils/logger';
 import { RunJobData } from '../types';
 import { ProxyManager } from '../proxy/ProxyManager';
 
+// Phase 2 Imports
+import { RetryStrategy, RetryConfig } from '../services/RetryStrategy';
+import { DeadLetterQueue } from '../services/DeadLetterQueue';
+import { URLFingerprint } from '../services/URLFingerprint';
+
 const docker = new Docker({
   socketPath:
     process.env.DOCKER_SOCKET ||
@@ -490,184 +495,272 @@ export class ActorExecutor {
       );
     }
 
-    let container:
-      | Docker.Container
-      | null = null;
+    // ===== PHASE 2: RETRY LOGIC START =====
+    const maxRetries = (options as any).maxRetries ?? 2;
+    const retryConfig: Partial<RetryConfig> = {
+      maxRetries,
+      initialDelayMs: 2000,
+      backoffMultiplier: 2,
+      jitterFactor: 0.1,
+    };
 
-    let exitCode = 1;
+    let attemptNumber = 0;
+    let lastError: any;
 
-    try {
-      const containerConfig = {
-        Image:
-          dockerImage,
+    while (attemptNumber <= maxRetries) {
+      attemptNumber++;
 
-        name: `wm-run-${runId.slice(
-          0,
-          8
-        )}`,
+      logger.info(
+        `[Run:${runId}] Execution attempt ${attemptNumber}/${maxRetries + 1}`
+      );
 
-        Cmd: [
-          'node',
-          stagedActor.entrypoint,
-        ],
+      let container:
+        | Docker.Container
+        | null = null;
 
-        Env: env,
+      let exitCode = 1;
 
-        WorkingDir:
-          '/app',
+      try {
+        const containerConfig = {
+          Image:
+            dockerImage,
 
-        HostConfig: {
-          Memory:
-            memoryBytes,
+          name: `wm-run-${runId.slice(
+            0,
+            8
+          )}-${attemptNumber}`,
 
-          Binds: [
-            `webminer_actor_storage:/app/storage:rw`,
+          Cmd: [
+            'node',
+            stagedActor.entrypoint,
           ],
 
-          AutoRemove: false,
+          Env: env,
 
-          ExtraHosts:
-            runtimeConfig.extraHosts,
+          WorkingDir:
+            '/app',
 
-          NetworkMode:
-            runtimeConfig.networkMode,
-        },
-      };
+          HostConfig: {
+            Memory:
+              memoryBytes,
 
-      logger.info(
-        `[Run:${runId}] DEBUG CMD: ${JSON.stringify(containerConfig.Cmd)}`
-      );
+            Binds: [
+              `webminer_actor_storage:/app/storage:rw`,
+            ],
 
-      container =
-        await docker.createContainer(
-          containerConfig
-        );
+            AutoRemove: false,
 
-      activeContainers.set(
-        runId,
-        container
-      );
+            ExtraHosts:
+              runtimeConfig.extraHosts,
 
-      await container.start();
-
-      logger.info(
-        `[Run:${runId}] Container started: ${container.id.slice(
-          0,
-          12
-        )}`
-      );
-
-      const waitResult =
-        await Promise.race([
-          container.wait(),
-          new Promise<{
-            StatusCode: number;
-          }>((_, reject) =>
-            setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    'TIMEOUT'
-                  )
-                ),
-              timeoutMs
-            )
-          ),
-        ]);
-
-      exitCode =
-        (waitResult as any)
-          .StatusCode ?? 1;
-
-      logger.info(
-        `[Run:${runId}] Container exited with code: ${exitCode}`
-      );
-
-      try {
-        const logs =
-          await container.logs({
-            stdout: true,
-            stderr: true,
-          });
+            NetworkMode:
+              runtimeConfig.networkMode,
+          },
+        };
 
         logger.info(
-          `[Run:${runId}] Container logs:\n${logs.toString()}`
+          `[Run:${runId}] DEBUG CMD: ${JSON.stringify(containerConfig.Cmd)}`
         );
-      } catch (err) {
-        logger.warn(
-          `[Run:${runId}] Failed to fetch logs`,
-          err
-        );
-      }
 
-      try {
-        const inspectData =
-          await container.inspect();
+        container =
+          await docker.createContainer(
+            containerConfig
+          );
 
-        logger.info(
-          `[Run:${runId}] ExitCode: ${inspectData.State.ExitCode}`
+        activeContainers.set(
+          runId,
+          container
         );
+
+        await container.start();
 
         logger.info(
-          `[Run:${runId}] Error: ${inspectData.State.Error}`
+          `[Run:${runId}] Container started: ${container.id.slice(
+            0,
+            12
+          )}`
         );
-      } catch (err) {
-        logger.warn(
-          `[Run:${runId}] Inspect failed`,
-          err
-        );
-      }
-    } catch (err: any) {
-      logger.error(
-        `[Run:${runId}] Execution error`,
-        err
-      );
-    } finally {
-      activeContainers.delete(
-        runId
-      );
 
-      if (container) {
+        const waitResult =
+          await Promise.race([
+            container.wait(),
+            new Promise<{
+              StatusCode: number;
+            }>((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      'TIMEOUT'
+                    )
+                  ),
+                timeoutMs
+              )
+            ),
+          ]);
+
+        exitCode =
+          (waitResult as any)
+            .StatusCode ?? 1;
+
+        logger.info(
+          `[Run:${runId}] Container exited with code: ${exitCode}`
+        );
+
         try {
-          const info =
-            await container
-              .inspect()
-              .catch(
-                () => null
-              );
-
-          if (
-            info &&
-            info.State.Running
-          ) {
-            await container.stop({
-              t: 10,
+          const logs =
+            await container.logs({
+              stdout: true,
+              stderr: true,
             });
-          }
 
           logger.info(
-            `[Run:${runId}] Container preserved for debugging`
+            `[Run:${runId}] Container logs:\n${logs.toString()}`
           );
-        } catch (e) {
+        } catch (err) {
           logger.warn(
-            `[Run:${runId}] Cleanup warning`,
-            e
+            `[Run:${runId}] Failed to fetch logs`,
+            err
           );
+        }
+
+        try {
+          const inspectData =
+            await container.inspect();
+
+          logger.info(
+            `[Run:${runId}] ExitCode: ${inspectData.State.ExitCode}`
+          );
+
+          logger.info(
+            `[Run:${runId}] Error: ${inspectData.State.Error}`
+          );
+        } catch (err) {
+          logger.warn(
+            `[Run:${runId}] Inspect failed`,
+            err
+          );
+        }
+
+        // SUCCESS!
+        if (exitCode === 0) {
+          logger.info(
+            `[Run:${runId}] ✅ Execution succeeded on attempt ${attemptNumber}`
+          );
+
+          activeContainers.delete(runId);
+
+          if (container) {
+            try {
+              await container.stop({ t: 10 });
+            } catch (e) {
+              logger.warn(`[Run:${runId}] Stop failed`, e);
+            }
+          }
+
+          await ActorExecutor.finishRun(
+            runId,
+            'succeeded',
+            exitCode,
+            startTime
+          );
+
+          return; // Exit successfully
+        }
+
+        // Non-zero exit: might retry
+        lastError = new Error(
+          `Container exited with code ${exitCode}`
+        );
+
+        if (attemptNumber <= maxRetries) {
+          const delayMs = RetryStrategy.calculateDelay(
+            attemptNumber - 1,
+            retryConfig
+          );
+
+          logger.warn(
+            RetryStrategy.formatRetryHistory(
+              attemptNumber,
+              delayMs,
+              attemptNumber + 1,
+              maxRetries
+            ),
+            { runId }
+          );
+
+          // Wait before retry
+          await new Promise((resolve) =>
+            setTimeout(resolve, delayMs)
+          );
+        }
+      } catch (err: any) {
+        lastError = err;
+
+        logger.error(
+          `[Run:${runId}] Execution error on attempt ${attemptNumber}`,
+          err
+        );
+
+        if (attemptNumber <= maxRetries) {
+          const delayMs = RetryStrategy.calculateDelay(
+            attemptNumber - 1,
+            retryConfig
+          );
+
+          logger.warn(
+            `Retrying in ${Math.round(delayMs / 1000)}s...`,
+            { runId }
+          );
+
+          await new Promise((resolve) =>
+            setTimeout(resolve, delayMs)
+          );
+        }
+      } finally {
+        activeContainers.delete(runId);
+
+        if (container) {
+          try {
+            const info = await container
+              .inspect()
+              .catch(() => null);
+
+            if (
+              info &&
+              info.State.Running
+            ) {
+              await container.stop({
+                t: 10,
+              });
+            }
+
+            logger.info(
+              `[Run:${runId}] Container cleaned up`
+            );
+          } catch (e) {
+            logger.warn(
+              `[Run:${runId}] Cleanup warning`,
+              e
+            );
+          }
         }
       }
     }
 
-    const finalStatus =
-      exitCode === 0
-        ? 'succeeded'
-        : 'failed';
+    // All retries exhausted
+    logger.error(
+      `[Run:${runId}] ❌ Failed after ${attemptNumber} attempts`,
+      lastError
+    );
 
     await ActorExecutor.finishRun(
       runId,
-      finalStatus,
-      exitCode,
+      'failed',
+      1,
       startTime
     );
+    // ===== PHASE 2: RETRY LOGIC END =====
   }
 
   static async finishRun(
