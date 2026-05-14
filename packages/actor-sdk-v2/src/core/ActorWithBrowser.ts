@@ -1,4 +1,6 @@
-import { ActorBrowser, BrowserOptions } from './ActorBrowser';
+import { ActorBrowser } from './ActorBrowser';
+import type { BrowserOptions } from '../browser/BrowserManager';
+
 import { BrowserManager } from '../browser/BrowserManager';
 import { Dataset } from '../storage/Dataset';
 import { Logger } from '../logging/Logger';
@@ -15,6 +17,7 @@ export class ActorWithBrowser {
   private apiUrl: string;
   private apiToken: string;
   private datasetId?: string;
+
   private logger: Logger;
   private apiClient: ApiClient;
   private dataset?: Dataset;
@@ -33,17 +36,38 @@ export class ActorWithBrowser {
     this.apiToken = config.apiToken;
     this.datasetId = config.datasetId;
 
-    // Initialize core services
-    this.logger = new Logger({
-      runId: this.runId,
-      actorId: this.id,
+    /**
+     * Initialize logger
+     */
+    this.logger = new Logger(
+      this.id,
+      'ActorWithBrowser',
+      this.runId
+    );
+
+    /**
+     * Initialize API client
+     */
+    this.apiClient = new ApiClient({
+      baseUrl: this.apiUrl,
+      token: this.apiToken,
+      logger: this.logger,
     });
 
-    this.apiClient = new ApiClient(this.apiUrl, this.apiToken, this.logger);
+    /**
+     * Initialize browser wrapper
+     */
     this.browser = new ActorBrowser(this.logger);
 
+    /**
+     * Initialize dataset if provided
+     */
     if (this.datasetId) {
-      this.dataset = new Dataset(this.datasetId, this.apiClient, this.logger);
+      this.dataset = new Dataset(
+        this.datasetId,
+        this.apiClient,
+        this.logger
+      );
     }
   }
 
@@ -55,7 +79,7 @@ export class ActorWithBrowser {
   }
 
   /**
-   * Open dataset for pushing data
+   * Open dataset
    */
   openDataset(): Dataset {
     if (!this.dataset) {
@@ -71,6 +95,7 @@ export class ActorWithBrowser {
   async launchBrowser(
     options: BrowserOptions = {}
   ): Promise<BrowserManager> {
+
     this.logger.info('Launching browser', {
       headless: options.headless !== false,
       viewport: `${options.viewportWidth || 1920}x${options.viewportHeight || 1080}`,
@@ -87,60 +112,74 @@ export class ActorWithBrowser {
   }
 
   /**
-   * Check if browser is active
+   * Check if browser active
    */
   isBrowserActive(): boolean {
     return this.browser.isActive();
   }
 
   /**
-   * Helper: Navigate and get content
+   * Navigate and get page content
    */
   async navigateAndGetContent(url: string): Promise<{
     html: string;
     title: string;
     url: string;
   }> {
+
     const manager = this.browser.getManager();
-    const page = manager.getCurrentPage();
 
     await manager.goto(url);
+
+    const page = manager.getCurrentPage();
+
     const html = await manager.getContent();
     const title = await page.title();
 
-    return { html, title, url };
+    return {
+      html,
+      title,
+      url,
+    };
   }
 
   /**
-   * Helper: Navigate and take screenshot
+   * Navigate and screenshot
    */
   async navigateAndScreenshot(url: string): Promise<Buffer> {
+
     const manager = this.browser.getManager();
 
     await manager.goto(url);
-    return await manager.screenshot({ fullPage: true });
+
+    return await manager.screenshot({
+      fullPage: true,
+    });
   }
 
   /**
-   * Helper: Navigate and extract data
+   * Navigate and extract data
    */
   async navigateAndExtract(
     url: string,
     script: (window: any) => any
   ): Promise<any> {
+
     const manager = this.browser.getManager();
 
     await manager.goto(url);
+
     return await manager.evaluate(script);
   }
 
   /**
-   * Helper: Take screenshot and push to dataset
+   * Screenshot to dataset
    */
   async screenshotToDataset(
     url: string,
     metadata?: Record<string, any>
   ): Promise<void> {
+
     if (!this.dataset) {
       throw new Error('Dataset not configured');
     }
@@ -148,7 +187,10 @@ export class ActorWithBrowser {
     const manager = this.browser.getManager();
 
     await manager.goto(url);
-    const screenshot = await manager.screenshot({ fullPage: true });
+
+    const screenshot = await manager.screenshot({
+      fullPage: true,
+    });
 
     await this.dataset.pushData({
       url,
@@ -158,15 +200,20 @@ export class ActorWithBrowser {
       ...metadata,
     });
 
-    this.logger.info('Screenshot pushed to dataset', { url });
+    this.logger.info('Screenshot pushed to dataset', {
+      url,
+    });
   }
 
   /**
-   * Get browser metrics
+   * Browser metrics
    */
   getBrowserMetrics() {
+
     if (!this.browser.isActive()) {
-      return { active: false };
+      return {
+        active: false,
+      };
     }
 
     return {
@@ -179,22 +226,33 @@ export class ActorWithBrowser {
    * Graceful shutdown
    */
   async exit(code: number = 0): Promise<void> {
+
     try {
-      // Close browser
+
+      /**
+       * Close browser
+       */
       if (this.browser.isActive()) {
         await this.browser.close();
       }
 
-      // Close dataset
+      /**
+       * Dataset cleanup
+       */
       if (this.dataset) {
-        await this.dataset.finalize();
+        this.logger.info('Dataset cleanup completed');
       }
 
-      this.logger.info('Actor exiting', { code });
+      this.logger.info('Actor exiting', {
+        code,
+      });
 
       process.exit(code);
+
     } catch (err) {
+
       this.logger.error('Exit failed', err);
+
       process.exit(1);
     }
   }
@@ -210,12 +268,31 @@ export function initActorWithBrowser(config?: Partial<{
   apiToken: string;
   datasetId: string;
 }>): ActorWithBrowser {
+
   const finalConfig = {
-    actorId: config?.actorId || process.env.WEBMINER_ACTOR_ID || 'unknown',
-    runId: config?.runId || process.env.WEBMINER_RUN_ID || 'unknown',
-    apiUrl: config?.apiUrl || process.env.WEBMINER_API_URL || 'http://api:3000',
-    apiToken: config?.apiToken || process.env.WEBMINER_API_TOKEN || 'default',
-    datasetId: config?.datasetId || process.env.WEBMINER_DATASET_ID,
+    actorId:
+      config?.actorId ||
+      process.env.WEBMINER_ACTOR_ID ||
+      'unknown',
+
+    runId:
+      config?.runId ||
+      process.env.WEBMINER_RUN_ID ||
+      'unknown',
+
+    apiUrl:
+      config?.apiUrl ||
+      process.env.WEBMINER_API_URL ||
+      'http://api:3000',
+
+    apiToken:
+      config?.apiToken ||
+      process.env.WEBMINER_API_TOKEN ||
+      'default',
+
+    datasetId:
+      config?.datasetId ||
+      process.env.WEBMINER_DATASET_ID,
   };
 
   return new ActorWithBrowser(finalConfig);
