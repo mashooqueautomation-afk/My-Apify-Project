@@ -1,0 +1,215 @@
+/**
+ * Retry Strategy Service
+ * Production-grade retry handling for scraping workloads
+ */
+
+export interface RetryConfig {
+  maxRetries: number;
+  initialDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+  jitterFactor: number;
+}
+
+export class RetryStrategy {
+  static readonly DEFAULT_CONFIG: RetryConfig = {
+    maxRetries: 5,
+    initialDelayMs: 2000,
+    maxDelayMs: 120000,
+    backoffMultiplier: 2,
+    jitterFactor: 0.2,
+  };
+
+  /**
+   * Calculate retry delay
+   */
+  static calculateDelay(
+    attemptNumber: number,
+    config: Partial<RetryConfig> = {}
+  ): number {
+    const merged = { ...this.DEFAULT_CONFIG, ...config };
+
+    let delay =
+      merged.initialDelayMs *
+      Math.pow(merged.backoffMultiplier, attemptNumber);
+
+    delay = Math.min(delay, merged.maxDelayMs);
+
+    // Random jitter
+    const jitter =
+      delay *
+      merged.jitterFactor *
+      (Math.random() - 0.5) *
+      2;
+
+    delay += jitter;
+
+    return Math.max(1000, Math.floor(delay));
+  }
+
+  /**
+   * Detect retryable errors
+   */
+  static isRetryable(error: any): boolean {
+    const message =
+      (error?.message || '').toLowerCase();
+
+    const code =
+      (error?.code || '').toLowerCase();
+
+    const statusCode =
+      error?.statusCode || error?.status;
+
+    // ===== NETWORK ERRORS =====
+
+    const networkErrors = [
+      'econnreset',
+      'econnrefused',
+      'etimedout',
+      'ehostunreach',
+      'enotfound',
+      'socket hang up',
+      'networkidle',
+    ];
+
+    if (
+      networkErrors.some((e) =>
+        code.includes(e) || message.includes(e)
+      )
+    ) {
+      return true;
+    }
+
+    // ===== PLAYWRIGHT ERRORS =====
+
+    const playwrightErrors = [
+      'target page',
+      'browser has been closed',
+      'execution context was destroyed',
+      'navigation timeout',
+      'page crashed',
+      'frame detached',
+    ];
+
+    if (
+      playwrightErrors.some((e) =>
+        message.includes(e)
+      )
+    ) {
+      return true;
+    }
+
+    // ===== RATE LIMITS =====
+
+    if (statusCode === 429) {
+      return true;
+    }
+
+    // ===== SERVER ERRORS =====
+
+    if (
+      statusCode >= 500 &&
+      statusCode <= 599
+    ) {
+      return true;
+    }
+
+    // ===== CLOUDFLARE / CAPTCHA =====
+
+    const antiBotErrors = [
+      'captcha',
+      'cloudflare',
+      'access denied',
+      'temporarily blocked',
+      'rate limited',
+      'too many requests',
+    ];
+
+    if (
+      antiBotErrors.some((e) =>
+        message.includes(e)
+      )
+    ) {
+      return true;
+    }
+
+    // ===== NON-RETRYABLE =====
+
+    if (
+      statusCode >= 400 &&
+      statusCode < 500 &&
+      statusCode !== 429
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Determine if proxy rotation needed
+   */
+  static shouldRotateProxy(error: any): boolean {
+    const message =
+      (error?.message || '').toLowerCase();
+
+    const statusCode =
+      error?.statusCode || error?.status;
+
+    if (statusCode === 403) {
+      return true;
+    }
+
+    if (statusCode === 429) {
+      return true;
+    }
+
+    const proxyTriggers = [
+      'captcha',
+      'cloudflare',
+      'access denied',
+      'forbidden',
+      'temporarily blocked',
+      'blocked',
+      'proxy connection failed',
+    ];
+
+    return proxyTriggers.some((e) =>
+      message.includes(e)
+    );
+  }
+
+  /**
+   * Determine if session should retire
+   */
+  static shouldRetireSession(error: any): boolean {
+    const message =
+      (error?.message || '').toLowerCase();
+
+    const triggers = [
+      'captcha',
+      'blocked',
+      'cloudflare',
+      'access denied',
+      'session expired',
+    ];
+
+    return triggers.some((e) =>
+      message.includes(e)
+    );
+  }
+
+  /**
+   * Retry log formatter
+   */
+  static formatRetryHistory(
+    attempts: number,
+    delayMs: number,
+    nextAttempt: number,
+    maxRetries: number
+  ): string {
+    return `Attempt ${attempts}/${maxRetries + 1} failed. Retrying in ${Math.round(
+      delayMs / 1000
+    )}s (next attempt: ${nextAttempt})`;
+  }
+}
