@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Mash Lead Scrapping enterprise lead generation and scraping platform",
   "private": true,
-  "workspaces": ["packages/*", "dashboard"],
+  "workspaces": [
+    "packages/*",
+    "dashboard"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:worker\" \"npm run dev:scheduler\" \"npm run dev:dashboard\"",
     "dev:api": "npm run dev --workspace=packages/api",
@@ -22,5 +25,9 @@
   "devDependencies": {
     "concurrently": "^8.2.2",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "csv-writer": "^1.6.0",
+    "xlsx": "^0.18.5"
   }
 }
